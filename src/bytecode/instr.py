@@ -675,7 +675,7 @@ A = TypeVar("A", bound=object)
 class BaseInstr(Generic[A]):
     """Abstract instruction."""
 
-    __slots__ = ("_arg", "_location", "_name", "_opcode")
+    __slots__ = ("_arg", "_location", "_name", "_opcode", "_offset")
 
     # Work around an issue with the default value of arg
     def __init__(
@@ -685,6 +685,7 @@ class BaseInstr(Generic[A]):
         *,
         lineno: int | None | _UNSET = UNSET,
         location: Optional[InstrLocation] = None,
+        offset: Optional[int] = None,
     ) -> None:
         self._set(name, arg)
         if location:
@@ -693,7 +694,7 @@ class BaseInstr(Generic[A]):
             self._location = None
         else:
             self._location = InstrLocation(lineno, None, None, None)
-
+        self._offset = offset
     # Work around an issue with the default value of arg
     def set(self, name: str, arg: A = UNSET) -> None:  # type: ignore
         """Modify the instruction in-place.
@@ -740,6 +741,14 @@ class BaseInstr(Generic[A]):
     @arg.setter
     def arg(self, arg: A):
         self._set(self._name, arg)
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset: int):
+        self._offset = offset
 
     @property
     def lineno(self) -> int | _UNSET | None:
@@ -810,7 +819,7 @@ class BaseInstr(Generic[A]):
             return (_effect, 0)
 
     def copy(self: T) -> T:
-        return self.__class__(self._name, self._arg, location=self._location)
+        return self.__class__(self._name, self._arg, location=self._location, offset=self._offset)
 
     def has_jump(self) -> bool:
         return self._has_jump(self._opcode)
