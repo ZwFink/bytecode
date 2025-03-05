@@ -93,13 +93,13 @@ class ConcreteInstr(BaseInstr[int]):
         lineno: Union[int, None, _UNSET] = UNSET,
         location: Optional[InstrLocation] = None,
         extended_args: Optional[int] = None,
+        offset: Optional[int] = None,
     ):
         # Allow to remember a potentially meaningless EXTENDED_ARG emitted by
         # Python to properly compute the size and avoid messing up the jump
         # targets
         self._extended_args = extended_args
-        super().__init__(name, arg, lineno=lineno, location=location)
-
+        super().__init__(name, arg, lineno=lineno, location=location, offset=offset)
     def _check_arg(self, name: str, opcode: int, arg: int) -> None:
         if opcode_has_argument(opcode):
             if arg is UNSET:
@@ -332,6 +332,7 @@ class ConcreteBytecode(_bytecode._BaseBytecodeList[Union[ConcreteInstr, SetLinen
             instructions = []
             for i in dis.get_instructions(code, show_caches=True):
                 loc = InstrLocation.from_positions(i.positions) if i.positions else None
+                offset = i.offset
                 # dis.get_instructions automatically handle extended arg which
                 # we do not want, so we fold back arguments to be between 0 and 255
                 instructions.append(
@@ -339,6 +340,7 @@ class ConcreteBytecode(_bytecode._BaseBytecodeList[Union[ConcreteInstr, SetLinen
                         i.opname,
                         i.arg % 256 if i.arg is not None else UNSET,
                         location=loc,
+                        offset=offset,
                     )
                 )
                 # cache_info only exist on 3.13+
@@ -1092,7 +1094,7 @@ class ConcreteBytecode(_bytecode._BaseBytecodeList[Union[ConcreteInstr, SetLinen
                     instr_index = len(instructions)
                     jumps.append((instr_index, jump_target))
 
-                instructions.append(Instr(c_instr.name, arg, location=location))
+                instructions.append(Instr(c_instr.name, arg, location=location, offset=c_instr.offset))
 
             # We now insert the TryEnd entries
             if current_instr_offset in ex_end:
@@ -1221,7 +1223,7 @@ class _ConvertBytecodeToConcrete:
                     self.instructions.extend(
                         [
                             ConcreteInstr(
-                                "CACHE", 0, location=self.instructions[-1].location
+                                "CACHE", 0, location=self.instructions[-1].location, offset=self.instructions[-1].offset
                             )
                             for i in range(self.required_caches)
                         ]
@@ -1295,7 +1297,7 @@ class _ConvertBytecodeToConcrete:
                     arg2_index = self.add(self.varnames, arg[1])
                     if arg1_index > 16 or arg2_index > 16:
                         n1, n2 = DUAL_ARG_OPCODES_SINGLE_OPS[opcode]
-                        c_instr = ConcreteInstr(n1, arg1_index, location=location)
+                        c_instr = ConcreteInstr(n1, arg1_index, location=location, offset=len(self.instructions))
                         self.instructions.append(c_instr)
                         instr_name = n2
                         c_arg = arg2_index
@@ -1365,7 +1367,7 @@ class _ConvertBytecodeToConcrete:
                 c_arg = arg
 
             # The above should have performed all the necessary conversion
-            c_instr = ConcreteInstr(instr_name, c_arg, location=location)
+            c_instr = ConcreteInstr(instr_name, c_arg, location=location, offset=len(self.instructions))
             if is_jump:
                 self.jumps.append((len(self.instructions), label, c_instr))
 
