@@ -632,6 +632,7 @@ class ControlFlowGraph(_bytecode.BaseBytecode):
                             instr.name,
                             self.get_block_index(target_block),
                             location=instr.location,
+                            offset=instr.offset
                         )
                         instructions.append(c_instr)
                     else:
